@@ -5,7 +5,8 @@ const SNAKE_BODY = 3;
 
 const GAME_PAUSED = 100;
 const GAME_RUNNING = 101;
-const GAME_OVER = 102;
+const YOU_DIED = 102;
+const VICTORY = 103;
 
 const KEY_CONTROL_UP = 201;
 const KEY_CONTROL_DOWN = 202;
@@ -37,7 +38,11 @@ const drawGameWith = (game, ctx, pxWidth, pxHeight) => {
       switch (gridValue) {
         case SNAKE_HEAD:
         case SNAKE_BODY:
-          ctx.fillStyle = game.state == GAME_OVER ? "#808080" : "#FF0000";
+          ctx.fillStyle = game.state == YOU_DIED ? "#808080" : "#FF0000";
+          ctx.fillRect(pxPos.x, pxPos.y, cellWidth, cellHeight);
+          break;
+        case APPLE:
+          ctx.fillStyle = "#FFFF00";
           ctx.fillRect(pxPos.x, pxPos.y, cellWidth, cellHeight);
           break;
         default:
@@ -47,11 +52,26 @@ const drawGameWith = (game, ctx, pxWidth, pxHeight) => {
   }
 }
 
-const placeApple = (game) => {
-  while (true) {
-    const randX = Math.floor(Math.random() * (game.numColumns - 1));
-    const randY = Math.floor(Math.random() * (game.numLines - 1));
+const placeRandomApple = (game) => {
+  var randX = Math.floor(Math.random() * (game.numColumns - 1));
+  var randY = Math.floor(Math.random() * (game.numLines - 1));
+
+  const numSquares = game.numLines * game.numColumns;
+  for (var attempts = 0; attempts < numSquares; attempts++) {
+    if (game.grid[randY][randX] == EMPTY) {
+      game.grid[randY][randX] = APPLE;
+      return;
+    } else {
+      if (++randX >= game.numColumns) {
+        randX = 0;
+        if (++randY >= game.numLines) {
+          randY = 0;
+        }
+      }
+    }
   }
+
+  throw Exception("What is this? What happened? Is this real?");
 }
 
 const iterateGame = (game) => {
@@ -59,16 +79,16 @@ const iterateGame = (game) => {
   game.keyEventQueue.forEach(({ key, }) => {
     switch (key) {
       case KEY_CONTROL_UP:
-        newSnakeDirection.y -= 1;
+        newSnakeDirection.y = -1;
         break;
       case KEY_CONTROL_DOWN:
-        newSnakeDirection.y += 1;
+        newSnakeDirection.y = 1;
         break;
       case KEY_CONTROL_LEFT:
-        newSnakeDirection.x -= 1;
+        newSnakeDirection.x = -1;
         break;
       case KEY_CONTROL_RIGHT:
-        newSnakeDirection.x += 1;
+        newSnakeDirection.x = 1;
         break;
     }
   });
@@ -90,25 +110,41 @@ const iterateGame = (game) => {
   let nextPos = game.snake[0].add(game.snakeDirection);
   const outOfRange = nextPos.x < 0 || nextPos.x >= game.numColumns || nextPos.y < 0 || nextPos.y >= game.numLines;
   if (outOfRange) {
-    game.state = GAME_OVER;
+    game.state = YOU_DIED;
     return;
   }
-  if (game.grid[nextPos.y][nextPos.x] != EMPTY) {
-    game.state = GAME_OVER;
+  const contentOfTargetSquare = game.grid[nextPos.y][nextPos.x];
+  if (contentOfTargetSquare == SNAKE_BODY) {
+    game.state = YOU_DIED;
     return;
   }
+  if (contentOfTargetSquare == APPLE) {
+    // The head is now body
+    game.grid[game.snake[0].y][game.snake[0].x] = SNAKE_BODY;
 
-  let lastSnakeSegment = game.snake[game.snake.length - 1];
-  // Erase last segment
-  game.grid[lastSnakeSegment.y][lastSnakeSegment.x] = EMPTY;
-  // Place head
-  game.grid[nextPos.y][nextPos.x] = SNAKE_HEAD;
-  // Replace old head with a body
-  game.grid[game.snake[0].y][game.snake[0].x] = SNAKE_BODY;
-  for (var i = 0; i < game.snake.length; i++) {
-    let prevPos = game.snake[i];
-    game.snake[i] = nextPos;
-    nextPos = prevPos;
+    // Here, at the middle of all this madness.. the snake is headless...
+
+    // And the target square has become head (it was apple)
+    game.grid[nextPos.y][nextPos.x] = SNAKE_HEAD;
+
+    // Let's remember that... oh wait who decided to name this thing unshift????
+    game.snake.unshift(nextPos);
+
+    // Get me a new apple!
+    placeRandomApple(game);
+  } else {
+    let lastSnakeSegment = game.snake[game.snake.length - 1];
+    // Erase last segment from grid
+    game.grid[lastSnakeSegment.y][lastSnakeSegment.x] = EMPTY;
+    // Place head
+    game.grid[nextPos.y][nextPos.x] = SNAKE_HEAD;
+    // Replace old head with a body
+    game.grid[game.snake[0].y][game.snake[0].x] = SNAKE_BODY;
+    for (var i = 0; i < game.snake.length; i++) {
+      let prevPos = game.snake[i];
+      game.snake[i] = nextPos;
+      nextPos = prevPos;
+    }
   }
 }
 
@@ -138,6 +174,8 @@ const gameRestart = (game) => {
 
   game.snakeDirection = point2D(0, -1); // Up
   game.state = GAME_RUNNING;
+
+  placeRandomApple(game);
 }
 
 const makeGame = (lines, columns) => {
@@ -170,7 +208,7 @@ function init(_event) {
 
   const ctx = canvas.getContext("2d");
 
-  const game = makeGame(30, 20);
+  const game = makeGame(10, 10);
 
   const iterate = () => {
     if (game.state != GAME_RUNNING) {
@@ -179,7 +217,7 @@ function init(_event) {
 
     game.iterate();
 
-    game.drawWith(ctx, 400, 600);
+    game.drawWith(ctx, 200, 200);
   };
 
   setInterval(iterate, 180);
