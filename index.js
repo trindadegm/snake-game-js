@@ -76,8 +76,12 @@ const placeRandomApple = (game) => {
 
 const iterateGame = (game) => {
   const newSnakeDirection = point2D(0, 0);
-  game.keyEventQueue.forEach(({ key, }) => {
-    switch (key) {
+  if (game.keyEventQueue.length > 0) {
+    if (game.keyEventQueue.length > 2) {
+      // Discard events when there are too many
+      game.keyEventQueue.length = 2;
+    }
+    switch (game.keyEventQueue[0].key) {
       case KEY_CONTROL_UP:
         newSnakeDirection.y = -1;
         break;
@@ -91,7 +95,9 @@ const iterateGame = (game) => {
         newSnakeDirection.x = 1;
         break;
     }
-  });
+    // Consume one event
+    game.keyEventQueue.splice(0, 1);
+  }
   // Our snake cannot move in diagonals so... it likes moving sideways more... I guess...
   if (newSnakeDirection.x != 0) {
     newSnakeDirection.y = 0;
@@ -101,8 +107,7 @@ const iterateGame = (game) => {
     newSnakeDirection.x = 0;
     newSnakeDirection.y = 0;
   }
-  // JS is kind of cute
-  game.keyEventQueue.length = 0;
+
   if (newSnakeDirection.x != 0 || newSnakeDirection.y != 0) {
     game.snakeDirection = newSnakeDirection;
   }
@@ -174,6 +179,8 @@ const gameRestart = (game) => {
 
   game.snakeDirection = point2D(0, -1); // Up
   game.state = GAME_RUNNING;
+  // JS is kind of cute
+  game.keyEventQueue.length = 0;
 
   placeRandomApple(game);
 }
@@ -191,6 +198,7 @@ const makeGame = (lines, columns) => {
     numColumns: columns,
 
     keyEventQueue,
+    controlDirection: point2D(0, 0),
 
     drawWith: (ctx, pxWidth, pxHeight) => drawGameWith(game, ctx, pxWidth, pxHeight),
     iterate: () => iterateGame(game),
@@ -220,7 +228,7 @@ function init(_event) {
     game.drawWith(ctx, 200, 200);
   };
 
-  setInterval(iterate, 180);
+  setInterval(iterate, 250);
 
   window.addEventListener("keydown", (event) => {
     if (event.repeat) {
